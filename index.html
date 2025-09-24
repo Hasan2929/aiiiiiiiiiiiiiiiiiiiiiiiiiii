@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>صانع محتوى العطور</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;700&display=swap" rel="stylesheet">
+</head>
+<body>
+
+    <main class="container">
+        <h1>صانع محتوى العطور بالذكاء الاصطناعي</h1>
+        <p>ارفع صورة لزجاجة العطر، ودع الذكاء الاصطناعي يكتب لك وصفاً إعلانياً ساحراً.</p>
+
+        <form id="generator-form">
+            <div class="input-group">
+                <label for="image-upload">اختر صورة العطر</label>
+                <input type="file" id="image-upload" name="image" accept="image/*" required>
+            </div>
+            <button type="submit" id="submit-btn">
+                <span class="btn-text">اصنع الوصف الآن</span>
+            </button>
+        </form>
+
+        <div id="result-container" class="hidden">
+            <h2>النتيجة:</h2>
+            <div id="loading" class="hidden">
+                <div class="spinner"></div>
+                <p>جاري توليد الوصف...</p>
+            </div>
+            <p id="result-text"></p>
+        </div>
+    </main>
+
+    <script>
+        const form = document.getElementById('generator-form');
+        const imageUpload = document.getElementById('image-upload');
+        const resultContainer = document.getElementById('result-container');
+        const resultText = document.getElementById('result-text');
+        const loading = document.getElementById('loading');
+        const submitBtn = document.getElementById('submit-btn');
+        const btnText = document.querySelector('.btn-text');
+
+        // دالة لتحويل ملف الصورة إلى صيغة base64
+        function toBase64(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => resolve(reader.result.split(',')[1]); // نزيل الجزء الأول من النص
+                reader.onerror = error => reject(error);
+            });
+        }
+
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            if (!imageUpload.files[0]) {
+                alert('الرجاء اختيار صورة أولاً.');
+                return;
+            }
+
+            // إظهار التحميل وتعطيل الزر
+            resultContainer.classList.remove('hidden');
+            resultText.innerText = '';
+            loading.classList.remove('hidden');
+            submitBtn.disabled = true;
+            btnText.innerText = 'الرجاء الانتظار...';
+
+            try {
+                const imageBase64 = await toBase64(imageUpload.files[0]);
+                const imageType = imageUpload.files[0].type;
+
+                // إرسال البيانات إلى الواجهة الخلفية (Netlify Function)
+                const response = await fetch('/.netlify/functions/generate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        image: imageBase64,
+                        mimeType: imageType
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`حدث خطأ: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                resultText.innerText = data.text;
+
+            } catch (error) {
+                console.error('Error:', error);
+                resultText.innerText = 'عذراً، حدث خطأ ما. الرجاء المحاولة مرة أخرى.';
+            } finally {
+                // إخفاء التحميل وإعادة تفعيل الزر
+                loading.classList.add('hidden');
+                submitBtn.disabled = false;
+                btnText.innerText = 'اصنع الوصف الآن';
+            }
+        });
+    </script>
+</body>
+</html>
